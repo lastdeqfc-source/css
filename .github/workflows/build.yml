@@ -1,1 +1,34 @@
-
+name: Build APK
+on:
+  workflow_dispatch:
+  push:
+    paths: ["project.zip"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup
+        run: |
+          unzip -q project.zip -d game
+          mkdir -p ~/.local/share/godot/export_templates ~/.config/godot
+          cp -r /root/.local/share/godot/export_templates/* ~/.local/share/godot/export_templates/ || true
+          cp /root/.config/godot/editor_settings-4.tres ~/.config/godot/ || true
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
+      - name: Build APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          cd game
+          mkdir -p build
+          godot --headless --verbose --import || true
+          godot --headless --verbose --export-debug "Android" build/game.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tactical-strike-apk
+          path: game/build/game.apk
+          
